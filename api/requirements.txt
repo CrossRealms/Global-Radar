@@ -1,0 +1,19 @@
+pydantic==1.7.3
+pymongo[srv]==3.11.3
+motor==2.4.0
+SQLAlchemy==1.3.20
+psycopg2==2.8.6
+alembic==1.4.3
+python-multipart==0.0.5
+passlib==1.7.4
+bcrypt==3.2.0
+python-jose==3.2.0
+
+# API
+fastapi==0.62.0
+uvicorn
+gunicorn
+
+# API server dependacy while running in prod with gunicorn
+uvloop==0.15.2
+httptools==0.2.0
