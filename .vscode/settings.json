@@ -2,5 +2,6 @@
     "python.analysis.extraPaths": [
         "${workspaceFolder}/api/",
         "${workspaceFolder}/api/util/",
+        "${workspaceFolder}/shadow_collector/"
     ]
 }

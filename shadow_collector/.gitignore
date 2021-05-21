@@ -1,8 +1,6 @@
 
 logs/**
-
-# Do not add certificate files in github
-certificates/**
+notes.txt
 
 
 **/*.pyc

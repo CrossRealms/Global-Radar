@@ -26,6 +26,8 @@ from util import config
 from schemas.general import Token, ApiSuccessResponse, ApiErrorResponse, ApiUnprocessableEntityResponse
 from schemas.user import UserRoles, User, UserList, UserCreate
 from schemas.fingerprintjs import FingerprintJSData, FingerprintJSGeoLocation
+from schemas.malicious_ips import MaliciousIPListAdmin, MaliciousIPListOnlyIPs
+from schemas.shadow_collector import SCDeviceList
 
 # Database
 from db import DatabaseConnection
@@ -219,6 +221,62 @@ async def add_fingerprintjs_geo(location_data: FingerprintJSGeoLocation, request
         # we do not store geo errors
         pass
 
+
+@app.get(
+    "/api/malicious_ip/list/onlyips",
+    response_model=MaliciousIPListOnlyIPs,
+    status_code=status.HTTP_200_OK,
+    operation_id="listMaliciousIPListIPsOnly",
+    description="List malicious Ip list (only IP Addresses)",
+)
+async def get_malicious_ip_list_ips_only(current_user: User = Depends(authenticate)):
+    try:
+        logger.info("Listing IP Addresses only.")
+        return await db.mal_ips.get_malicious_ip_list_only_ips(db.create_session())
+    except Exception as e:
+        logger.exception("Exception while getting the malicious ip list (only IP Addresses). {}".format(e))
+        raise
+
+
+@app.get(
+    "/api/malicious_ip/admin/list",
+    response_model=MaliciousIPListAdmin,
+    status_code=status.HTTP_200_OK,
+    operation_id="listMaliciousIPListAdmin",
+    description="List malicious Ip list directly from database (only for admin)",
+)
+async def get_malicious_ip_list_admin(page: int=0, page_size: int=10, current_user: User = Depends(authenticate)):
+    try:
+        logger.info("Listing IP information (only for admin user).")
+        if current_user.role == UserRoles.ADMIN:
+            return await db.mal_ips.get_malicious_ip_list_for_admin(db.create_session(), page, page_size)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Only Admin can view the malicious IP list from database.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except Exception as e:
+        logger.exception("Exception while getting the malicious ip list for admin. {}".format(e))
+        raise
+
+
+@app.post(
+    "/api/sc/add",
+    response_model=ApiSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="addShadowCollectorFingerprinting",
+    description="Add fingerprinting from Shadow Collectors.",
+)
+async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = Depends(authenticate)):
+    try:
+        logger.info("Adding Malicious IP information from Shadow Collector.")
+        await db.mal_ips.add_shadow_collector_ips(db.create_session(), current_user.username, device_list)
+        return ApiSuccessResponse()
+    except Exception as e:
+        logger.exception("Exception while adding the shadow collector list to database. {}".format(e))
+        raise
 
 
 
