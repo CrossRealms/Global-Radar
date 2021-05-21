@@ -1,7 +1,7 @@
 import motor.motor_asyncio
 
 from util import config
-from . import db_user, db_fingerprintjs
+from . import db_user, db_fingerprintjs, db_firewall_mal_ips, db_mal_ips
 
 
 class MongoDBConnection:
@@ -12,6 +12,8 @@ class MongoDBConnection:
 
         self.users = db_user
         self.fingerprintjs = db_fingerprintjs
+        self.firewall_mal_ips = db_firewall_mal_ips
+        self.mal_ips = db_mal_ips
     
     def create_session(self):
         return self.db

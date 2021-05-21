@@ -28,6 +28,7 @@ from schemas.user import UserRoles, User, UserList, UserCreate
 from schemas.fingerprintjs import FingerprintJSData, FingerprintJSGeoLocation
 from schemas.malicious_ips import MaliciousIPListAdmin, MaliciousIPListOnlyIPs
 from schemas.shadow_collector import SCDeviceList
+from schemas.firewall_malicious_ips import FirewallMaliciousIPCreate, FirewallMaliciousIPCreateList, FirewallMaliciousIPGetAll, FirewallMaliciousIPListResponse
 
 # Database
 from db import DatabaseConnection
@@ -277,6 +278,69 @@ async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = De
     except Exception as e:
         logger.exception("Exception while adding the shadow collector list to database. {}".format(e))
         raise
+
+
+
+async def add_splunk_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreate):
+    logger.info("Adding a new malicious IP list.")
+    await db.firewall_mal_ips.add_firewall_malicious_ips(db.create_session(), firewall_mal_ips)
+    return ApiSuccessResponse()
+
+
+# For backward compatibility for Malicious IP list from Splunk
+@app.post(
+    "/api/v1/ip",
+    response_model=FirewallMaliciousIPListResponse,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="addIpFromSplunk_Backward_Compatibility",
+    description="Add Ip address to the database from Splunk (Backward Compatibility)",
+)
+async def add_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateList, current_user: User = Depends(authenticate)):
+    return await add_splunk_malicious_ip(firewall_mal_ips)
+
+
+# For backward compatibility for Malicious IP list from Splunk
+@app.post(
+    "/api/ip_from_splunk/add",
+    response_model=FirewallMaliciousIPListResponse,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="addIpFromSplunk",
+    description="Add Ip address to the database from Splunk",
+)
+async def add_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateList, current_user: User = Depends(authenticate)):
+    return await add_splunk_malicious_ip(firewall_mal_ips)
+
+
+async def get_malicious_ip_list_for_splunk():
+    logger.info("Return Malicious IP List.")
+    return await db.firewall_mal_ips.get_firewall_malicious_ips(db.create_session())
+
+
+@app.get(
+    "/api/v1/ip",
+    response_model=FirewallMaliciousIPGetAll,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="listIpForSplunk_Backward_Compatibility",
+    description="List all the Ips for Splunk (Backward Compatibility)",
+)
+async def list_malicious_ip(current_user: User = Depends(authenticate)):
+    return await get_malicious_ip_list_for_splunk()
+
+
+@app.get(
+    "/api/ip_for_splunk",
+    response_model=FirewallMaliciousIPGetAll,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="listIpForSplunk",
+    description="List all the Ips for Splunk",
+)
+async def list_malicious_ip(current_user: User = Depends(authenticate)):
+    return await get_malicious_ip_list_for_splunk()
+
 
 
 
