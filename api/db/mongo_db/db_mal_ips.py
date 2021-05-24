@@ -1,5 +1,5 @@
 
-from config import honeypots_config
+from util.config import HoneyPotsConfig
 
 
 class DBMaliciousIPs:
@@ -106,7 +106,7 @@ class DBMaliciousIPs:
 
 async def add_shadow_collector_ips(db, account_name, sc_list):
     field = None
-    if account_name in honeypots_config.honeypot_accounts:
+    if account_name in HoneyPotsConfig().honeypot_accounts:
         field = DBMaliciousIPs.FIELD_HONEYPOT_DETECTION
     else:
         field = DBMaliciousIPs.FIELD_DMZ_DETECTION

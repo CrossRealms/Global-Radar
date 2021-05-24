@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-import config
+from util import config
 from . import db_user, db_mal_ips
 
 

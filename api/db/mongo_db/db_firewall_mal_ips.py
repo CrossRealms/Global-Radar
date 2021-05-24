@@ -1,6 +1,6 @@
 
 import datetime
-from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPCreateList, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll
+from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll
 
 class DBFirewallMaliciousIPs:
     COLLECTION = 'firewall_malicious_ips'
@@ -33,7 +33,7 @@ class DBFirewallMaliciousIPs:
     '''
 
 
-async def add_firewall_malicious_ips(db, mal_ip_list: FirewallMaliciousIPCreateList):
+async def add_firewall_malicious_ips(db, username: str, mal_ip_list):   # FirewallMaliciousIPCreateList
     for ip_object in mal_ip_list.data:
 
         document_from_database = await db[DBFirewallMaliciousIPs.COLLECTION].find_one({DBFirewallMaliciousIPs.FIELD_IP : ip_object.ip})
@@ -54,6 +54,7 @@ async def add_firewall_malicious_ips(db, mal_ip_list: FirewallMaliciousIPCreateL
             )
         else:
             await db[DBFirewallMaliciousIPs.COLLECTION].insert_one({
+                DBFirewallMaliciousIPs.FIELD_IP : ip_object.ip,
                 DBFirewallMaliciousIPs.FIELD_IP_LOCATION: ip_object.ip_location,
                 DBFirewallMaliciousIPs.FIELD_CATEGORIES: [ip_object.category],
                 DBFirewallMaliciousIPs.FIELD_LAST_SEEN: datetime.datetime.now(),
@@ -65,9 +66,9 @@ async def add_firewall_malicious_ips(db, mal_ip_list: FirewallMaliciousIPCreateL
             await db[DBFirewallMaliciousIPs.COLLECTION].update_one(
                 { DBFirewallMaliciousIPs.FIELD_IP : ip_object.ip },
                 {
-                    "$addToSet": { 
+                    "$addToSet": {
                         DBFirewallMaliciousIPs.FIELD_AFFECTED_DEVICES : {
-                            DBFirewallMaliciousIPs.FIELD_DEVICE_USERNAME: ip_object.customer_id,
+                            DBFirewallMaliciousIPs.FIELD_DEVICE_USERNAME: username,
                             DBFirewallMaliciousIPs.FIELD_DEVICE_ID: device_id,
                         }
                     }
@@ -77,7 +78,7 @@ async def add_firewall_malicious_ips(db, mal_ip_list: FirewallMaliciousIPCreateL
 
 
 async def get_firewall_malicious_ips(db):
-    firewall_mal_ips = await db[DBFirewallMaliciousIPs.COLLECTION].aggregate(
+    firewall_mal_ips = db[DBFirewallMaliciousIPs.COLLECTION].aggregate(
         [
             {
                 "$project": {
@@ -86,7 +87,9 @@ async def get_firewall_malicious_ips(db):
                     DBFirewallMaliciousIPs.FIELD_CATEGORIES: 1,
                     DBFirewallMaliciousIPs.FIELD_LAST_SEEN: 1,
                     DBFirewallMaliciousIPs.FIELD_HITS: 1,
-                    "number_of_affected_devices": "${}".format(DBFirewallMaliciousIPs.FIELD_AFFECTED_DEVICES),
+                    "number_of_affected_devices": {
+                        "$size": "${}".format(DBFirewallMaliciousIPs.FIELD_AFFECTED_DEVICES)
+                    },
                 }
             }
         ]
@@ -101,7 +104,7 @@ async def get_firewall_malicious_ips(db):
     malicious_ips = []
     last_7_days = datetime.datetime.now() - datetime.timedelta(days=7)
 
-    for mal_ip in firewall_mal_ips:
+    async for mal_ip in firewall_mal_ips:
         if mal_ip[DBFirewallMaliciousIPs.FIELD_LAST_SEEN] >= last_7_days:
             for category in mal_ip[DBFirewallMaliciousIPs.FIELD_CATEGORIES]:
                 if category == FirewallIpCategory.DDOS:
@@ -110,7 +113,7 @@ async def get_firewall_malicious_ips(db):
                             ip=mal_ip[DBFirewallMaliciousIPs.FIELD_IP],
                             description=category_to_description[category],
                             ip_location=mal_ip[DBFirewallMaliciousIPs.FIELD_IP_LOCATION],
-                            last_seen=mal_ip[DBFirewallMaliciousIPs.FIELD_LAST_SEEN],
+                            last_seen=mal_ip[DBFirewallMaliciousIPs.FIELD_LAST_SEEN].timestamp(),
                             no_of_affected_devices=mal_ip["number_of_affected_devices"],
                             no_of_hits=mal_ip[DBFirewallMaliciousIPs.FIELD_HITS]
                         )
@@ -122,7 +125,7 @@ async def get_firewall_malicious_ips(db):
                                 ip=mal_ip[DBFirewallMaliciousIPs.FIELD_IP],
                                 description=category_to_description[category],
                                 ip_location=mal_ip[DBFirewallMaliciousIPs.FIELD_IP_LOCATION],
-                                last_seen=mal_ip[DBFirewallMaliciousIPs.FIELD_LAST_SEEN],
+                                last_seen=mal_ip[DBFirewallMaliciousIPs.FIELD_LAST_SEEN].timestamp(),
                                 no_of_affected_devices=mal_ip["number_of_affected_devices"],
                                 no_of_hits=mal_ip[DBFirewallMaliciousIPs.FIELD_HITS]
                             )
