@@ -313,10 +313,6 @@ async def add_firewall_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateL
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
-async def get_firewall_malicious_ip_list():
-    logger.info("Return Malicious IP List.")
-    return await db.firewall_mal_ips.get_firewall_malicious_ips(db.create_session())
-
 
 @app.get(
     "/api/v1/ip",
@@ -327,7 +323,8 @@ async def get_firewall_malicious_ip_list():
     description="List firewall malicious IPs for Splunk (Backward Compatibility)",
 )
 async def list_firewall_malicious_ips_old(current_user: User = Depends(authenticate)):
-    return await get_firewall_malicious_ip_list()
+    logger.info("Return Malicious IP List. (Old)")
+    return await db.firewall_mal_ips.get_firewall_malicious_ips_old(db.create_session())
 
 
 @app.get(
@@ -339,7 +336,8 @@ async def list_firewall_malicious_ips_old(current_user: User = Depends(authentic
     description="List firewall malicious IPs for Splunk",
 )
 async def list_firewall_malicious_ips(current_user: User = Depends(authenticate)):
-    return await get_firewall_malicious_ip_list()
+    logger.info("Return Malicious IP List.")
+    return await db.firewall_mal_ips.get_firewall_malicious_ips(db.create_session())
 
 
 
