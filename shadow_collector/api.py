@@ -4,8 +4,8 @@ import configparser
 
 CONFIG_FILE = 'sc.conf'
 API_CONFIGURATION = 'api'
-API_PATH_ADD_FINGERPRINT = 'api/sc/add'
-DEFAULT_API_TIMEOUT = 5
+API_PATH_ADD_FINGERPRINT = 'api/v1/sc/add'
+DEFAULT_API_TIMEOUT = 20
 
 
 class CyencesAPI:

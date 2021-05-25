@@ -34,7 +34,7 @@ from schemas.firewall_malicious_ips import FirewallMaliciousIPCreateList, Firewa
 from db import DatabaseConnection
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/token")
 
 app = FastAPI(
     title="Cyences API",
@@ -118,12 +118,9 @@ def authorize(current_user, roles=[]):
 
 
 # Custom Exception Handler - Logs the exception
-class UnicornException(Exception):
-    def __init__(self, name: str):
-        self.name = name
 
-@app.exception_handler(UnicornException)
-async def unicorn_exception_handler(request: Request, exc: UnicornException):
+@app.exception_handler(Exception)
+async def unicorn_exception_handler(request: Request, exc: Exception):
     logger.exception("{}".format(exc))
     raise exc
 
@@ -134,7 +131,7 @@ def get_client_ip(request):
 
 
 
-@app.post("/api/token", response_model=Token)
+@app.post("/api/v1/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     logger.info("login for user: {}".format(form_data.username))
     user = await authenticate_user(form_data.username, form_data.password)
@@ -147,9 +144,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return token_manager.create_token(user.username)
 
 
+##################
+## User Actions ##
+##################
 
 @app.get(
-    "/api/admin/users/list",
+    "/api/v1/users/list",
     response_model=UserList,
     operation_id="listUsers",
     description="List all the Users"
@@ -162,7 +162,7 @@ async def get_all_user_list(current_user: User = Depends(authenticate)):
 
 
 @app.post(
-    "/api/admin/users/register",
+    "/api/v1/users/register",
     response_model=ApiSuccessResponse,
     status_code=status.HTTP_200_OK,
     responses={422: {"model": ApiUnprocessableEntityResponse}},
@@ -191,8 +191,12 @@ async def register_user(user: UserCreate, role: str=UserRoles.USER, current_user
         )
 
 
+####################
+## Fingerprint JS ##
+####################
+
 @app.post(
-    "/api/fingerprintjs/add",
+    "/api/v1/fingerprintjs/add",
     response_model=ApiSuccessResponse,
     status_code=status.HTTP_200_OK,
     responses={422: {"model": ApiUnprocessableEntityResponse}},
@@ -206,14 +210,14 @@ async def add_fingerprintjs_data(fingerprint_data: FingerprintJSData, request: R
 
 
 @app.post(
-    "/api/fingerprintjs/add/geo",
+    "/api/v1/fingerprintjs/add/geo",
     response_model=ApiSuccessResponse,
     status_code=status.HTTP_200_OK,
     responses={422: {"model": ApiUnprocessableEntityResponse}},
     operation_id="addFingerprintJSGeoLocation",
     description="Add geo location collected from the browser.",
 )
-async def add_fingerprintjs_geo(location_data: FingerprintJSGeoLocation, request: Request):
+async def add_fingerprintjs_geo_location(location_data: FingerprintJSGeoLocation, request: Request):
     client_ip = get_client_ip(request)
     if location_data.geoLocation:
         await db.fingerprintjs.add_geo_location(db.create_session(), location_data, client_ip)
@@ -223,52 +227,42 @@ async def add_fingerprintjs_geo(location_data: FingerprintJSGeoLocation, request
         pass
 
 
+##############################################
+## Network Malicious IPs / Shadow Collector ##
+##############################################
+
 @app.get(
-    "/api/malicious_ip/list/onlyips",
+    "/api/v1/mal_ips/list",
     response_model=MaliciousIPListOnlyIPs,
     status_code=status.HTTP_200_OK,
     operation_id="listMaliciousIPListIPsOnly",
-    description="List malicious Ip list (only IP Addresses)",
+    description="List malicious Ip list (only IP Addresses) (Collected by Shadow Collectors)",
 )
 async def get_malicious_ip_list_ips_only(current_user: User = Depends(authenticate)):
-    try:
-        logger.info("Listing IP Addresses only.")
-        return await db.mal_ips.get_malicious_ip_list_only_ips(db.create_session())
-    except Exception as e:
-        logger.exception("Exception while getting the malicious ip list (only IP Addresses). {}".format(e))
-        raise
+    logger.info("Listing IP Addresses only.")
+    return await db.mal_ips.get_malicious_ip_list_only_ips(db.create_session())
 
 
 @app.get(
-    "/api/malicious_ip/admin/list",
+    "/api/v1/mal_ips/details",
     response_model=MaliciousIPListAdmin,
     status_code=status.HTTP_200_OK,
-    operation_id="listMaliciousIPListAdmin",
-    description="List malicious Ip list directly from database (only for admin)",
+    operation_id="listMaliciousIPsDetails",
+    description="List network malicious Ips (collected by Shadow Collectors) (with all details) directly from database (only for admin)",
 )
-async def get_malicious_ip_list_admin(page: int=0, page_size: int=10, current_user: User = Depends(authenticate)):
-    try:
-        logger.info("Listing IP information (only for admin user).")
-        if current_user.role == UserRoles.ADMIN:
-            return await db.mal_ips.get_malicious_ip_list_for_admin(db.create_session(), page, page_size)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Only Admin can view the malicious IP list from database.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except Exception as e:
-        logger.exception("Exception while getting the malicious ip list for admin. {}".format(e))
-        raise
+async def get_malicious_ip_details(page: int=0, page_size: int=10, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.ADMIN])
+    logger.info("Listing IP information (only for admin user).")
+    return await db.mal_ips.get_malicious_ip_list_for_admin(db.create_session(), page, page_size)
 
 
 @app.post(
-    "/api/sc/add",
+    "/api/v1/sc/add",
     response_model=ApiSuccessResponse,
     status_code=status.HTTP_200_OK,
     responses={422: {"model": ApiUnprocessableEntityResponse}},
     operation_id="addShadowCollectorFingerprinting",
-    description="Add fingerprinting from Shadow Collectors.",
+    description="Add fingerprinting from Shadow Collectors (Network Malicious IPs).",
 )
 async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = Depends(authenticate)):
     try:
@@ -280,6 +274,10 @@ async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = De
         raise
 
 
+
+############################
+## Firewall Malicious IPs ##
+############################
 
 async def add_firewall_malicious_ip_to_db(username: str, firewall_mal_ips):
     logger.info("Adding a new malicious IP list.")
@@ -300,9 +298,8 @@ async def add_firewall_malicious_ip_old(firewall_mal_ips: FirewallMaliciousIPCre
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
-# For backward compatibility for Malicious IP list from Splunk
 @app.post(
-    "/api/firewall_mal_ips/add",
+    "/api/v1/firewall_mal_ips/add",
     response_model=ApiSuccessResponse,
     status_code=status.HTTP_200_OK,
     responses={422: {"model": ApiUnprocessableEntityResponse}},
@@ -313,7 +310,7 @@ async def add_firewall_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateL
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
-
+# For backward compatibility for Malicious IP list from Splunk
 @app.get(
     "/api/v1/ip",
     response_model=FirewallMaliciousIPGetAllOld,
@@ -328,7 +325,7 @@ async def list_firewall_malicious_ips_old(current_user: User = Depends(authentic
 
 
 @app.get(
-    "/api/firewall_mal_ips/list",
+    "/api/v1/firewall_mal_ips/list",
     response_model=FirewallMaliciousIPGetAll,
     status_code=status.HTTP_200_OK,
     responses={422: {"model": ApiUnprocessableEntityResponse}},
