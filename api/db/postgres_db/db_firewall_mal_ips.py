@@ -1,118 +1,173 @@
 
 import datetime
 from sqlalchemy import Column, String, DateTime, Enum, Integer, func
+from sqlalchemy.orm import relationship
 from .db_base import Base
 
-from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPCreateList, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll
+from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPCreateList, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld, FirewallMaliciousIPGetOld
 
-class MaliciousIp(Base):
+class FirewallMaliciousIpModel(Base):
     __tablename__ = 'firewall_maliciousip'
 
-    id = Column(Integer, autoincrement=True)
     ip = Column(String(255), unique=True, primary_key=True)
     ip_location = Column(String(255))
     category = Column(Enum(FirewallIpCategory))
     last_seen = Column(DateTime, default=datetime.datetime.now())
-    no_of_ports_used = Column(Integer)
-    no_of_victims = Column(Integer)
-    hits = Column(Integer)
+    no_of_hits = Column(Integer)
+
+    # Relationships
+    affected_devices = relationship("FirewallAffectedDeviceModel", backref="firewall_malicious_ip")
 
 
-class AffectedDevice(Base):
+class FirewallAffectedDeviceModel(Base):
     __tablename__ = 'firewall_affected_device'
 
     ip = Column(String(255), primary_key=True)
     device = Column(String(255), primary_key=True)
-    device_name = Column(String(255))
     customer_id = Column(String(255), primary_key=True)
 
 
-async def add_firewall_malicious_ips(db, data_source: FirewallMaliciousIPCreateList):
-    ip_address_list = []
-    success = True
-    error_list = []
-    for ip_object in data_source.data:
-        ip_info = db.query(MaliciousIp).get(ip_object.ip)
+async def add_firewall_malicious_ips(db, username: str, mal_ip_list: FirewallMaliciousIPCreateList):
+
+    for ip_object in mal_ip_list.data:
+
+        ip_info = db.query(FirewallMaliciousIpModel).get(ip_object.ip)
+
+        last_seen = datetime.datetime.now()
+        if ip_object.last_seen:
+            ls_from_input = datetime.datetime.utcfromtimestamp(ip_object.last_seen)
+            if ls_from_input < last_seen:
+                last_seen = ls_from_input
+        
+        categories = set(ip_info.category.split(','))
+        categories.add(ip_object.category)
+        categories = ','.join(categories)
+
         if ip_info:
-            ip_info.hits = ip_info.hits + 1
+            # If document already exist in the database
+            ip_info.no_of_hits = ip_info.no_of_hits + 1
             ip_info.ip_location = ip_object.ip_location
-            ip_info.category = ip_object.category
-            ip_info.last_seen = datetime.datetime.now()
-            ip_info.no_of_ports_used = ip_object.no_of_ports_used + ip_info.no_of_ports_used
-            ip_info.no_of_victims = ip_info.no_of_victims + ip_object.no_of_victims
+            ip_info.category = categories
+            ip_info.last_seen = last_seen
             db.commit()
             db.refresh(ip_info)
-            ip_address_list.append(ip_info.ip)
         else:
-            ip_db = MaliciousIp(
+            ip_db = FirewallMaliciousIpModel(
                 ip=ip_object.ip,
-                hits=1,
-                last_seen=datetime.datetime.now(),
+                no_of_hits=1,
+                last_seen=last_seen,
                 ip_location=ip_object.ip_location,
                 category = ip_object.category,
-                no_of_ports_used = ip_object.no_of_ports_used,
-                no_of_victims = ip_object.no_of_victims,
             )
             db.add(ip_db)
             db.commit()
             db.refresh(ip_db)
-            ip_address_list.append(ip_db.ip)
             
         for device_id in ip_object.device.split(','):
-            device_info = db.query(AffectedDevice).get(
+            device_info = db.query(FirewallAffectedDeviceModel).get(
                 {
                     "ip": ip_object.ip,
                     "device": device_id,
-                    "customer_id": ip_object.customer_id,
+                    "customer_id": username,
                 }
             )
             if not device_info:
-                device_db = AffectedDevice(
+                device_db = FirewallAffectedDeviceModel(
                     ip=ip_object.ip,
                     device=device_id,
-                    device_name=ip_object.device_name,
                     customer_id=ip_object.customer_id
                 )
                 db.add(device_db)
                 db.commit()
 
 
-async def get_firewall_malicious_ips(db):
-    ip_filtered = db.query(AffectedDevice.ip,func.count(AffectedDevice.device)).group_by(AffectedDevice.ip).all()
+async def get_firewall_malicious_ips_old(db):
+    affected_devices_list = db.query(FirewallAffectedDeviceModel.ip,func.count(FirewallAffectedDeviceModel.device)).group_by(FirewallAffectedDeviceModel.ip).all()
+
+    # convert affected devices to dict for better performance
+    affected_devices = {}
+    for d in affected_devices_list:
+        #                 ip = no_of_devices
+        affected_devices[d[0]] = d[1]
+
     category_to_description = {
         FirewallIpCategory.OUTBOUND: "Outgoing traffic from multiple firewalls to this blocked IP",
         FirewallIpCategory.INBOUND: "Incoming traffic into multiple firewalls from this blocked IP",
         FirewallIpCategory.DDOS: "Involved in DDoS Attack",
     }
+
     malicious_ips = []
     last_7_days = datetime.datetime.now() - datetime.timedelta(days=7)
-    found_ip = {}
-    for ip_obj in ip_filtered:
-        if ip_obj[1] >= 3:
-            mal_ip = db.query(MaliciousIp).get(ip_obj[0])
-            if mal_ip.last_seen >= last_7_days:
-                malicious_ips.append(
-                    FirewallMaliciousIPGet(
-                        ip=mal_ip.ip,
-                        description=category_to_description[mal_ip.category],
-                        ip_location=mal_ip.ip_location,
-                        last_seen=mal_ip.last_seen.timestamp(),
+
+    firewall_mal_ips = db.query(FirewallMaliciousIpModel).all()
+
+    for mal_ip in firewall_mal_ips:
+        if mal_ip.last_seen >= last_7_days:
+            for category in mal_ip.category.split(','):
+                if category == FirewallIpCategory.DDOS:
+                    malicious_ips.append(
+                        FirewallMaliciousIPGetOld(
+                            ip=mal_ip.ip,
+                            description=category_to_description[category],
+                            ip_location=mal_ip.ip_location,
+                            last_seen=mal_ip.last_seen.timestamp(),
+                        )
                     )
-                )
-                found_ip[mal_ip.ip] = True
-    ddos_ips = db.query(MaliciousIp).filter(MaliciousIp.category==FirewallIpCategory.DDOS).all()
-    for ip_obj in ddos_ips:
-        if ip_obj.ip not in found_ip:
-            malicious_ips.append(
-                FirewallMaliciousIPGet(
-                    ip=ip_obj.ip,
-                    description=category_to_description[ip_obj.category],
-                    ip_location=ip_obj.ip_location,
-                    last_seen=ip_obj.last_seen.timestamp(),
-                    no_of_ports_used=ip_obj.no_of_ports_used,
-                    no_of_victims=ip_obj.no_of_victims,
-                )
-            )
+                else:
+                    if affected_devices.get(mal_ip.ip, 0) >= 3:
+                        malicious_ips.append(
+                            FirewallMaliciousIPGetOld(
+                                ip=mal_ip.ip,
+                                description=category_to_description[mal_ip.category],
+                                ip_location=mal_ip.ip_location,
+                                last_seen=mal_ip.last_seen.timestamp(),
+                            )
+                        )
+    return FirewallMaliciousIPGetAllOld(
+        data=malicious_ips
+    )
+
+
+async def get_firewall_malicious_ips(db):
+    affected_devices_list = db.query(FirewallAffectedDeviceModel.ip,func.count(FirewallAffectedDeviceModel.device)).group_by(FirewallAffectedDeviceModel.ip).all()
+
+    # convert affected devices to dict for better performance
+    affected_devices = {}
+    for d in affected_devices_list:
+        #                 ip = no_of_devices
+        affected_devices[d[0]] = d[1]
+
+    malicious_ips = []
+    last_7_days = datetime.datetime.now() - datetime.timedelta(days=7)
+
+    firewall_mal_ips = db.query(FirewallMaliciousIpModel).all()
+
+    for mal_ip in firewall_mal_ips:
+        if mal_ip.last_seen >= last_7_days:
+            for category in mal_ip.category.split(','):
+                if category == FirewallIpCategory.DDOS:
+                    malicious_ips.append(
+                        FirewallMaliciousIPGet(
+                            ip=mal_ip.ip,
+                            category=category,
+                            ip_location=mal_ip.ip_location,
+                            last_seen=mal_ip.last_seen.timestamp(),
+                            no_of_affected_devices=affected_devices.get(mal_ip.ip, 0),
+                            no_of_hits=mal_ip.no_of_hits,
+                        )
+                    )
+                else:
+                    if affected_devices.get(mal_ip.ip, 0) >= 3:
+                        malicious_ips.append(
+                            FirewallMaliciousIPGetOld(
+                                ip=mal_ip.ip,
+                                category=category,
+                                ip_location=mal_ip.ip_location,
+                                last_seen=mal_ip.last_seen.timestamp(),
+                                no_of_affected_devices=affected_devices.get(mal_ip.ip, 0),
+                                no_of_hits=mal_ip.no_of_hits,
+                            )
+                        )
     return FirewallMaliciousIPGetAll(
         data=malicious_ips
     )

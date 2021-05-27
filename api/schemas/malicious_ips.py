@@ -1,7 +1,7 @@
 
 import enum
 import datetime
-from typing import List
+from typing import List, Union
 from pydantic import BaseModel
 
 
@@ -26,7 +26,7 @@ class IPLocationAdmin(BaseModel):
 
 
 class MaliciousIPInformationAdmin(BaseModel):
-    source_id: int
+    source_id: Union[int, str]
     field: str
     value: str
     last_detected: datetime.datetime
@@ -34,7 +34,7 @@ class MaliciousIPInformationAdmin(BaseModel):
 
 
 class MaliciousIPSourcesAdmin(BaseModel):
-    id: str
+    id: Union[int, str]
     received_from: str
     source: str
 

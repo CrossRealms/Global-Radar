@@ -3,7 +3,7 @@ from sqlalchemy import ForeignKey, UniqueConstraint, PrimaryKeyConstraint, Colum
 from sqlalchemy.orm import relationship
 import datetime
 
-from schemas.malicious_ips import IPLocationAdmin, MaliciousIPAdmin, MaliciousIPInformationAdmin, MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPSourceCategory, MaliciousIPSourcesAdmin
+from schemas.malicious_ips import MaliciousIPAdmin, MaliciousIPInformationAdmin, MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPSourceCategory
 from schemas.shadow_collector import SCUniqueDeviceList
 
 from util.config import HoneyPotsConfig
@@ -73,12 +73,10 @@ class MaliciousIPModel(Base):
     locations = relationship("IPLocationModel", backref="malicious_ip", cascade="all, delete", passive_deletes=True)
 
     def get_information(self, db, source_id):
-        info = db.query(MaliciousIPInformationModel).filter(MaliciousIPInformationModel.bad_actor==self.ip and MaliciousIPInformationModel.source_id == source_id)
-        return info
+        return db.query(MaliciousIPInformationModel).filter(MaliciousIPInformationModel.bad_actor==self.ip and MaliciousIPInformationModel.source_id == source_id)
 
     def get_all_information(self, db):
-        all_info = db.query(MaliciousIPInformationModel).filter(MaliciousIPInformationModel.bad_actor==self.ip)
-        return all_info
+        return db.query(MaliciousIPInformationModel).filter(MaliciousIPInformationModel.bad_actor==self.ip)
 
     # Constraints
     __table_args__ = (

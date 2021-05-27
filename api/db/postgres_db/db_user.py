@@ -21,6 +21,7 @@ async def get_with_name(db, name):
         user_obj = User(user.username, user.email, user.hashed_password, user.role)
     return user_obj
 
+
 async def get_user_list(db):
     users_from_db = db.query(UserModel).all()
     users = UserList(user_list=list())
@@ -32,6 +33,7 @@ async def get_user_list(db):
         )
     return users
 
+
 async def add(db, user):
     db.add(UserModel(
         username=user.username,
@@ -40,4 +42,3 @@ async def add(db, user):
         role=user.role,
     ))
     db.commit()
-

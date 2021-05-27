@@ -348,3 +348,6 @@ async def list_firewall_malicious_ips(current_user: User = Depends(authenticate)
 # 6. deleting source info based on time
 # 7. Test true concurrency of API and database operations with Postgres
 # 8. Optimise database for better performance
+# 9. DDoS attack
+# 10. Bruteforce: 5 wrong password a client
+# 11. put fingerprintjs separate key so can we can identity client that sends the request differently

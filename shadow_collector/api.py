@@ -33,9 +33,23 @@ class CyencesAPI:
 
         for i in data:
             json_data["device_list"].append(data[i].get_representation())
+        '''
+        Example:
+            {
+                "device_list": [
+                    {
+                        "ip": "10.33.1.33",
+                        "fields": {
+                            "uptime": ["29 days 18 hrs 38 min (modulo 49 days)"],
+                            "raw_freq": ["1000.00 Hz"]
+                        }
+                    }
+                ]
+            }
+        '''
         
         # TODO - Need to remove below line
-            self.logger.debug("Data to be sent to API: {}".format(json_data))
+        self.logger.debug("Data to be sent to API: {}".format(json_data))
         try:
             response = requests.post(
                 url = "{}/{}".format(self.api_url, API_PATH_ADD_FINGERPRINT),
