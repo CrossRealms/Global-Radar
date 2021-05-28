@@ -10,7 +10,7 @@ DEFAULT_API_TIMEOUT = 20
 
 class CyencesAPI:
     def __init__(self, logger):
-        conf = configparser.RawConfigParser()   
+        conf = configparser.RawConfigParser()
         conf.read(CONFIG_FILE)
         self.api_url = conf.get(API_CONFIGURATION, 'url').strip().rstrip("/")
         # self.api_username = conf.get(API_CONFIGURATION, 'username')

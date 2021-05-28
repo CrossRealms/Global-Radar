@@ -4,6 +4,12 @@ import queue
 import subprocess
 import threading
 import time
+import configparser
+
+CONFIG_FILE = 'sc.conf'
+SC_CONFIGURATION = 'shadow_collector'
+conf = configparser.RawConfigParser()
+conf.read(CONFIG_FILE)
 
 
 
@@ -70,7 +76,17 @@ class P0FCollector(ShadowCollector):
     BLOCK_END = "`----"
 
 
-    def __init__(self, logger, fingerprint, interface, promiscuous=True):
+    def __init__(self, logger, fingerprint, promiscuous=True):
+        current_machine_ips = conf.get(SC_CONFIGURATION, 'current_machine_ips').strip().split(",")
+        self.current_machine_ips = [x.strip() for x in current_machine_ips]
+
+        filter_internal_ips = conf.get(SC_CONFIGURATION, 'filter_internal_ips').strip()
+        self.filter_internal_ips = True    # default is to filter internal IPs
+        if filter_internal_ips.lower() in ['0', 'f', 'false']:
+            self.filter_internal_ips = False
+
+
+        interface = conf.get(SC_CONFIGURATION, 'interface').strip()
         cmd = ['p0f', '-i', interface]
         if promiscuous:
             cmd.append('-p')
@@ -86,28 +102,37 @@ class P0FCollector(ShadowCollector):
     def extract_information_from_block(self, block):
         main_info = re.search(self.BLOCK_MAIN_INFORMATION, block)
         if main_info:
-            ip = None
+            other_ip = None
+            other_port = None
             ip1 = main_info.group(1)
             port1 = main_info.group(2)
-            ip2 = main_info.group(1)
-            port2 = main_info.group(2)
+            ip2 = main_info.group(3)
+            port2 = main_info.group(4)
 
-            ip1_is_private = re.match(self.PRIVATE_IP_CHECK, ip1)
-            ip2_is_private = re.match(self.PRIVATE_IP_CHECK, ip2)
-            if not ip1_is_private:
-                ip = ip1
-                port = port1
-            elif not ip2_is_private:
-                ip = ip2
-                port = port2
-            else:
+            ip1_is_current = ip1 in self.current_machine_ips
+            ip2_is_current = ip2 in self.current_machine_ips
+            
+            if ip1_is_current and ip2_is_current:
+                # This is not possible scenario as traffic cannot go from one machine to the same machine, handling crazily defined conf file scenario
                 return
+
+            if not ip1_is_current:
+                other_ip = ip1
+                other_port = port1
+            elif not ip2_is_current:
+                other_ip = ip2
+                other_port = port2
+
+            if self.filter_internal_ips:
+                if re.match(self.PRIVATE_IP_CHECK, other_ip):
+                    # If set to filter internal IPs, ignore filter internal IPs with regex
+                    return
 
             protocol = main_info.group(5)
             other_info = re.findall(self.BLOCK_FIELDS, block)
-            other_info.append(('port', port))
+            other_info.append(('port', other_port))
             other_info.append(('protocol', protocol))
-            self.fingerprint.add_device_info(ip, other_info)
+            self.fingerprint.add_device_info(other_ip, other_info)
 
 
     def wait_until_block_ends(self, output):
