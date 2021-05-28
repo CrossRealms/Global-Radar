@@ -54,3 +54,7 @@ class MaliciousIPListAdmin(BaseModel):
 class MaliciousIPListOnlyIPs(BaseModel):
     ips: List[str]
     total: int
+
+
+class MaliciousIPsRemove(BaseModel):
+    ips_to_remove: List[str]

@@ -42,3 +42,10 @@ async def add(db, user):
         role=user.role,
     ))
     db.commit()
+
+
+async def remove(db, username):
+    # TODO - Need to delete all cascaded tables, like ip_location, malicious_ip_sources, and their dependencies if not cascaded already
+    #      - Need to test
+    db.query(UserModel).get(username).delete()
+    db.commit()

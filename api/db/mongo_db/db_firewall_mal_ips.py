@@ -1,6 +1,6 @@
 
 import datetime
-from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld, FirewallMaliciousIPGetOld
+from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld, FirewallMaliciousIPGetOld, FirewallMaliciousIPsRemove
 
 class DBFirewallMaliciousIPs:
     COLLECTION = 'firewall_malicious_ips'
@@ -186,3 +186,9 @@ async def get_firewall_malicious_ips(db):
     return FirewallMaliciousIPGetAll(
         data=malicious_ips
     )
+
+
+async def remove_firewall_malicious_ips(db, ip_addresses: FirewallMaliciousIPsRemove):
+    return await db[DBFirewallMaliciousIPs.COLLECTION].delete_many({ 
+        DBFirewallMaliciousIPs.FIELD_IP : { "$in": ip_addresses.ips_to_remove } 
+    })

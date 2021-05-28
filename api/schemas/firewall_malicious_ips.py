@@ -58,3 +58,7 @@ class FirewallMaliciousIPGet(BaseModel):
 
 class FirewallMaliciousIPGetAll(BaseModel):
     data: List[FirewallMaliciousIPGet] = []
+
+
+class FirewallMaliciousIPsRemove(BaseModel):
+    ips_to_remove: List[str]

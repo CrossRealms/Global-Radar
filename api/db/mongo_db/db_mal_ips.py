@@ -1,7 +1,7 @@
 
 import datetime
 
-from schemas.malicious_ips import MaliciousIPAdmin, MaliciousIPInformationAdmin, MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPSourceCategory
+from schemas.malicious_ips import MaliciousIPAdmin, MaliciousIPInformationAdmin, MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPSourceCategory, MaliciousIPsRemove
 from schemas.shadow_collector import SCUniqueDeviceList
 
 from util.config import HoneyPotsConfig
@@ -170,6 +170,15 @@ async def get_malicious_ip_list_only_ips(db):
 
     all_ips.total = total
     return all_ips
+
+
+async def remove_malicious_ips(db, ip_addresses: MaliciousIPsRemove):
+    await db[DBMaliciousIPInformation.COLLECTION].delete_many({ 
+        DBMaliciousIPInformation.FIELD_BAD_ACTOR : { "$in": ip_addresses.ips_to_remove } 
+    })
+    await db[DBMaliciousIPs.COLLECTION].delete_many({ 
+        DBMaliciousIPs.FIELD_IP : { "$in": ip_addresses.ips_to_remove } 
+    })
 
 
 async def get_malicious_ip_sources(db):

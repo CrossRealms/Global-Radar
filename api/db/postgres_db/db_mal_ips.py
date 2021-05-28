@@ -3,7 +3,7 @@ from sqlalchemy import ForeignKey, UniqueConstraint, PrimaryKeyConstraint, Colum
 from sqlalchemy.orm import relationship
 import datetime
 
-from schemas.malicious_ips import MaliciousIPAdmin, MaliciousIPInformationAdmin, MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPSourceCategory
+from schemas.malicious_ips import MaliciousIPAdmin, MaliciousIPInformationAdmin, MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPSourceCategory, MaliciousIPsRemove
 from schemas.shadow_collector import SCUniqueDeviceList
 
 from util.config import HoneyPotsConfig
@@ -205,6 +205,13 @@ async def get_malicious_ip_list_only_ips(db):
 
     all_ips.total = total
     return all_ips
+
+
+async def remove_malicious_ips(db, ip_addresses: MaliciousIPsRemove):
+    # TODO - testing with postgres pending
+    return db.query(MaliciousIPModel)\
+            .filter(MaliciousIPModel.ip.in_(ip_addresses))\
+            .delete()
 
 
 async def get_malicious_ip_sources(db):

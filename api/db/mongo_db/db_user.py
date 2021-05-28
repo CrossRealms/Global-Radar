@@ -33,3 +33,9 @@ async def add(db, user):
         DBUsers.FIELD_PASSWORD: user.hashed_password,
         DBUsers.FIELD_ROLE: user.role
     })
+
+
+async def remove(db, username):
+    return await db[DBUsers.COLLECTION].delete_one({
+        DBUsers.FIELD_USERNAME: username
+    })

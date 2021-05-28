@@ -26,9 +26,9 @@ from util import config
 from schemas.general import Token, ApiSuccessResponse, ApiErrorResponse, ApiUnprocessableEntityResponse
 from schemas.user import UserRoles, User, UserList, UserCreate
 from schemas.fingerprintjs import FingerprintJSData, FingerprintJSGeoLocation
-from schemas.malicious_ips import MaliciousIPListAdmin, MaliciousIPListOnlyIPs
+from schemas.malicious_ips import MaliciousIPListAdmin, MaliciousIPListOnlyIPs, MaliciousIPsRemove
 from schemas.shadow_collector import SCDeviceList
-from schemas.firewall_malicious_ips import FirewallMaliciousIPCreateList, FirewallMaliciousIPCreateListOld, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld
+from schemas.firewall_malicious_ips import FirewallMaliciousIPCreateList, FirewallMaliciousIPCreateListOld, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld, FirewallMaliciousIPsRemove
 
 # Database
 from db import DatabaseConnection
@@ -191,6 +191,25 @@ async def register_user(user: UserCreate, role: str=UserRoles.USER, current_user
         )
 
 
+@app.post(
+    "/api/v1/users/remove",
+    response_model=ApiSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="removeUser",
+    description="Remove a user from the System",
+)
+async def remove_user(username: str, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.ADMIN])
+    logger.info("Removing a user: {}".format(username))
+    await db.users.remove(
+        db.create_session(),
+        username
+    )
+    return ApiSuccessResponse()
+
+
+
 ####################
 ## Fingerprint JS ##
 ####################
@@ -254,6 +273,20 @@ async def get_malicious_ip_details(page: int=0, page_size: int=10, current_user:
     authorize(current_user, roles=[UserRoles.ADMIN])
     logger.info("Listing IP information (only for admin user).")
     return await db.mal_ips.get_malicious_ip_list_for_admin(db.create_session(), page, page_size)
+
+
+@app.post(
+    "/api/v1/mal_ips/remove",
+    response_model=ApiSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    operation_id="removeMaliciousIPs",
+    description="Remove network malicious Ips (collected by Shadow Collectors)",
+)
+async def remove_malicious_ips(ip_address_to_remove: MaliciousIPsRemove, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.ADMIN])
+    logger.info("Removing Network Malicious IPs")
+    await db.mal_ips.remove_malicious_ips(db.create_session(), ip_address_to_remove)
+    return ApiSuccessResponse()
 
 
 @app.post(
@@ -335,6 +368,20 @@ async def list_firewall_malicious_ips_old(current_user: User = Depends(authentic
 async def list_firewall_malicious_ips(current_user: User = Depends(authenticate)):
     logger.info("Return Malicious IP List.")
     return await db.firewall_mal_ips.get_firewall_malicious_ips(db.create_session())
+
+
+@app.post(
+    "/api/v1/firewall_mal_ips/remove",
+    response_model=ApiSuccessResponse,
+    status_code=status.HTTP_200_OK,
+    responses={422: {"model": ApiUnprocessableEntityResponse}},
+    operation_id="removeFirewallMaliciousIps",
+    description="Remove Malicious IP addresses from Firewall (through Splunk)",
+)
+async def remove_firewall_malicious_ips(ip_address_to_remove: FirewallMaliciousIPsRemove, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.ADMIN])
+    await db.firewall_mal_ips.remove_firewall_malicious_ips(db.create_session(), ip_address_to_remove)
+    return ApiSuccessResponse()
 
 
 

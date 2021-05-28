@@ -4,7 +4,7 @@ from sqlalchemy import Column, String, DateTime, Enum, Integer, func
 from sqlalchemy.orm import relationship
 from .db_base import Base
 
-from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPCreateList, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld, FirewallMaliciousIPGetOld
+from schemas.firewall_malicious_ips import FirewallIpCategory, FirewallMaliciousIPCreateList, FirewallMaliciousIPGet, FirewallMaliciousIPGetAll, FirewallMaliciousIPGetAllOld, FirewallMaliciousIPGetOld, FirewallMaliciousIPsRemove
 
 class FirewallMaliciousIpModel(Base):
     __tablename__ = 'firewall_maliciousip'
@@ -171,3 +171,10 @@ async def get_firewall_malicious_ips(db):
     return FirewallMaliciousIPGetAll(
         data=malicious_ips
     )
+
+
+async def remove_firewall_malicious_ips(db, ip_addresses: FirewallMaliciousIPsRemove):
+    # TODO - need to test
+    return db.query(FirewallMaliciousIpModel)\
+            .filter(FirewallMaliciousIpModel.ip.in_(ip_addresses))\
+            .delete()
