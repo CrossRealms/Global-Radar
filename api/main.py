@@ -170,7 +170,7 @@ async def get_all_user_list(current_user: User = Depends(authenticate)):
     description="Register New User to the System",
 )
 # TODO - Need to validate role being created must be one of the Enum role
-async def register_user(user: UserCreate, role: str=UserRoles.USER, current_user: User = Depends(authenticate)):
+async def register_user(user: UserCreate, role: UserRoles = UserRoles.USER, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
     logger.info("Creating a new user: {} - {}".format(user.username, user.email))
     try:
