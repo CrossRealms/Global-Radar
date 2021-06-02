@@ -169,6 +169,7 @@ async def get_all_user_list(current_user: User = Depends(authenticate)):
     operation_id="addUser",
     description="Register New User to the System",
 )
+# TODO - Need to validate role being created must be one of the Enum role
 async def register_user(user: UserCreate, role: str=UserRoles.USER, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
     logger.info("Creating a new user: {} - {}".format(user.username, user.email))
@@ -222,9 +223,9 @@ async def remove_user(username: str, current_user: User = Depends(authenticate))
     operation_id="addFingerprintJSData",
     description="Add fingerprinting data collected from the browser.",
 )
-async def add_fingerprintjs_data(fingerprint_data: FingerprintJSData, request: Request):
+async def add_fingerprintjs_data(fingerprint_data: FingerprintJSData, request: Request, current_user: User = Depends(authenticate)):
     client_ip = get_client_ip(request)
-    await db.fingerprintjs.add(db.create_session(), fingerprint_data, client_ip)
+    await db.fingerprintjs.add(db.create_session(), fingerprint_data, client_ip, current_user.username)
     return ApiSuccessResponse()
 
 
@@ -236,10 +237,10 @@ async def add_fingerprintjs_data(fingerprint_data: FingerprintJSData, request: R
     operation_id="addFingerprintJSGeoLocation",
     description="Add geo location collected from the browser.",
 )
-async def add_fingerprintjs_geo_location(location_data: FingerprintJSGeoLocation, request: Request):
+async def add_fingerprintjs_geo_location(location_data: FingerprintJSGeoLocation, request: Request, current_user: User = Depends(authenticate)):
     client_ip = get_client_ip(request)
     if location_data.geoLocation:
-        await db.fingerprintjs.add_geo_location(db.create_session(), location_data, client_ip)
+        await db.fingerprintjs.add_geo_location(db.create_session(), location_data, client_ip, current_user.username)
         return ApiSuccessResponse()
     else:
         # we do not store geo errors
@@ -258,6 +259,7 @@ async def add_fingerprintjs_geo_location(location_data: FingerprintJSGeoLocation
     description="List malicious Ip list (only IP Addresses) (Collected by Shadow Collectors)",
 )
 async def get_malicious_ip_list_ips_only(current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
     logger.info("Listing IP Addresses only.")
     return await db.mal_ips.get_malicious_ip_list_only_ips(db.create_session())
 
@@ -298,13 +300,10 @@ async def remove_malicious_ips(ip_address_to_remove: MaliciousIPsRemove, current
     description="Add fingerprinting from Shadow Collectors (Network Malicious IPs).",
 )
 async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = Depends(authenticate)):
-    try:
-        logger.info("Adding Malicious IP information from Shadow Collector.")
-        await db.mal_ips.add_shadow_collector_ips(db.create_session(), current_user.username, device_list)
-        return ApiSuccessResponse()
-    except Exception as e:
-        logger.exception("Exception while adding the shadow collector list to database. {}".format(e))
-        raise
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
+    logger.info("Adding Malicious IP information from Shadow Collector.")
+    await db.mal_ips.add_shadow_collector_ips(db.create_session(), current_user.username, device_list)
+    return ApiSuccessResponse()
 
 
 
@@ -312,7 +311,8 @@ async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = De
 ## Firewall Malicious IPs ##
 ############################
 
-async def add_firewall_malicious_ip_to_db(username: str, firewall_mal_ips):
+async def add_firewall_malicious_ip_to_db(username: str, firewall_mal_ips, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
     logger.info("Adding a new malicious IP list.")
     await db.firewall_mal_ips.add_firewall_malicious_ips(db.create_session(), username, firewall_mal_ips)
     return ApiSuccessResponse()
@@ -328,6 +328,7 @@ async def add_firewall_malicious_ip_to_db(username: str, firewall_mal_ips):
     description="Add Malicious IP addresses from Firewall (through Splunk) (Backward Compatibility)",
 )
 async def add_firewall_malicious_ip_old(firewall_mal_ips: FirewallMaliciousIPCreateListOld, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
@@ -340,6 +341,7 @@ async def add_firewall_malicious_ip_old(firewall_mal_ips: FirewallMaliciousIPCre
     description="Add Malicious IP addresses from Firewall (through Splunk)",
 )
 async def add_firewall_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateList, current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
@@ -353,6 +355,7 @@ async def add_firewall_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateL
     description="List firewall malicious IPs for Splunk (Backward Compatibility)",
 )
 async def list_firewall_malicious_ips_old(current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
     logger.info("Return Malicious IP List. (Old)")
     return await db.firewall_mal_ips.get_firewall_malicious_ips_old(db.create_session())
 
@@ -366,6 +369,7 @@ async def list_firewall_malicious_ips_old(current_user: User = Depends(authentic
     description="List firewall malicious IPs for Splunk",
 )
 async def list_firewall_malicious_ips(current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
     logger.info("Return Malicious IP List.")
     return await db.firewall_mal_ips.get_firewall_malicious_ips(db.create_session())
 

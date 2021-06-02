@@ -10,7 +10,7 @@ async def get_fingerprintjs(db, visitor_id):
 
 
 
-async def add(db, fingerprint: FingerprintJSData, client_ip: str):
+async def add(db, fingerprint: FingerprintJSData, client_ip: str, username: str):
     # TODO - Need to implement for postgres
     document_from_database = await db[DBFingerprintJS.COLLECTION].find_one({DBFingerprintJS.FIELD_VISITOR_ID : fingerprint.visitorId})
     if document_from_database:
@@ -29,7 +29,7 @@ async def add(db, fingerprint: FingerprintJSData, client_ip: str):
 
 
 
-async def add_geo_location(db, geo_location: FingerprintJSGeoLocation, client_ip: str):
+async def add_geo_location(db, geo_location: FingerprintJSGeoLocation, client_ip: str, username: str):
     # TODO - Need to implement for postgres
     geo_document_from_database = await db[DBFingerprintJS.COLLECTION].find_one(
         {

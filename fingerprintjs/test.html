@@ -45,22 +45,18 @@
 
 
     let API_BASE_URL = 'https://cyences.crossrealms.com:8080/api/v1/fingerprintjs';
+    let BROWSER_TOKEN = '<Update Token Here>'
 
-    function sendDataToCyences(fingerprintData){
-        $.post({
-            url: `${API_BASE_URL}/add`,
-            data: JSON.stringify(fingerprintData),
-            success: function(data, status){
-                console.log(data);
+    function cyencesApiCall(url, data, type="POST"){
+        $.ajax({
+            url: url,
+            type: type,
+            headers: {
+                "accept": "application/json",
+                "Authorization": `Bearer ${BROWSER_TOKEN}`,
+                "Content-Type": "application/json"
             },
-            async: true
-        });
-    }
-
-    function sendGeoDataToCyences(geoLocation){
-        $.post({
-            url: `${API_BASE_URL}/geo/add`,
-            data: JSON.stringify(fingerprintData),
+            data: JSON.stringify(data),
             success: function(data, status){
                 console.log(data);
             },
@@ -132,7 +128,7 @@
                 
                 printOutput("fingerprintjs_data", result);
 
-                // sendDataToCyences(result);
+                cyencesApiCall(`${API_BASE_URL}/add`, result);
 
                 geoPromise.then(location => {
                     let geoData = {
@@ -141,7 +137,7 @@
                     };
                     printOutput("fingerprintjs_geo", geoData);
 
-                    // sendGeoDataToCyences(geoData);
+                    cyencesApiCall(`${API_BASE_URL}/geo/add`, geoData);
 
                 }).catch(err => {
                     let geoData = {

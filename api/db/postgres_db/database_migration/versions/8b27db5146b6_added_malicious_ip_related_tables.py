@@ -1,7 +1,7 @@
 """Added malicious Ip related tables.
 
 Revision ID: 8b27db5146b6
-Revises: be01f1a9f59e
+Revises: 350c66f32786
 Create Date: 2021-04-23 12:25:44.147852
 
 """

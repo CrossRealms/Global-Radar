@@ -1,7 +1,7 @@
-"""init migrations
+"""Added firewall malicious IPs related tables
 
-Revision ID: 43891f96bb8d
-Revises: 
+Revision ID: 350c66f32786
+Revises: be01f1a9f59e
 Create Date: 2021-01-12 17:37:53.073250
 
 """

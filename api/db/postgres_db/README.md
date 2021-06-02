@@ -34,3 +34,20 @@ alembic downgrade -1
 alembic revision --autogenerate -m "Added account table"
 ```
 
+### Postgres CLI Commands Reference
+* List the database
+    ```
+    \l
+    ```
+* Select the database.
+    ```
+    \c <database-name>
+    ```
+* List the tables in the database
+    ```
+    \d
+    ```
+* Run SQL query:
+    ```
+    SELECT * FROM users;
+    ```

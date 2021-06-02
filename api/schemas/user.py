@@ -4,8 +4,9 @@ from pydantic import BaseModel, validator
 import enum
 
 class UserRoles(str, enum.Enum):
-    ADMIN = "admin"
-    USER = "user"
+    ADMIN = "ADMIN"
+    USER = "USER"
+    BROWSER = "BROWSER"
 
 
 class User:
