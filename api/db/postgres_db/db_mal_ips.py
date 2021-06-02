@@ -215,17 +215,7 @@ async def remove_malicious_ips(db, ip_addresses: MaliciousIPsRemove):
 
 
 async def get_malicious_ip_sources(db):
-    '''
-    TODO
-    for db_source in db_ip.sources:
-            source = MaliciousIPSourcesAdmin(
-                id = db_source.id,
-                received_from = db_source.received_from,
-                source = db_source.source,
-                count = db_source.count,
-                information = []
-            )
-    '''
+    # TODO - Need to implement
     pass
 
 
@@ -236,7 +226,6 @@ async def get_account_specific_malicious_ip_list(db):
     pass    
 
 async def get_specific(db, ip):
-    # full_details =  await self.collection.find_one({DBMaliciousIPs.FIELD_IP: ip})
     # TODO - modify the response
     pass
 

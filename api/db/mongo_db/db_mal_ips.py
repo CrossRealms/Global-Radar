@@ -182,17 +182,7 @@ async def remove_malicious_ips(db, ip_addresses: MaliciousIPsRemove):
 
 
 async def get_malicious_ip_sources(db):
-    '''
-    TODO
-    for db_source in db_ip.sources:
-            source = MaliciousIPSourcesAdmin(
-                id = db_source.id,
-                received_from = db_source.received_from,
-                source = db_source.source,
-                count = db_source.count,
-                information = []
-            )
-    '''
+    # TODO - implement
     pass
 
 
