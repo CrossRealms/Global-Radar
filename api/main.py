@@ -2,7 +2,6 @@
 # Fast API
 from fastapi import FastAPI, Depends, status, HTTPException, Request
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 
@@ -42,14 +41,84 @@ app = FastAPI(
     debug=False
 )
 
+# FastAPI Middleware Doc
+# https://fastapi.tiangolo.com/tutorial/middleware/
+# Order of middleware execution is the, the one that added first will be executed last
+# 
+# Performance and Debugging Related Middlewares
+# https://github.com/steinnes/timing-asgi
+# https://github.com/perdy/starlette-prometheus
+# https://github.com/encode/uvicorn/blob/master/uvicorn/middleware/debug.py
+
+
+'''
+# Protection against CSRF attack
+# https://piccolo-api.readthedocs.io/en/latest/csrf/index.html
+
+from piccolo_api.csrf.middleware import CSRFMiddleware
+app.add_middleware(CSRFMiddleware, allowed_hosts=["foo.com"], allow_form_param=True)
+'''
+
+
+'''
+# Useful when list of host sending request are fixed, might not be useful in public APIs
+
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["example.com", "*.example.com"])
+'''
+
+
+# CORS Reference - https://fastapi.tiangolo.com/tutorial/cors/
+from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET",'POST'],
     allow_headers=["*"],
 )
 
+
+'''
+# Any request coming to http or ws will be redirected to https or wss
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+# Comment below line for dev environment
+app.add_middleware(HTTPSRedirectMiddleware)
+'''
+
+
+# Protect against brute-force / DDoS attack / Credential Stuffing / Password Spraying 
+# https://piccolo-api.readthedocs.io/en/latest/rate_limiting/index.html
+from piccolo_api.rate_limiting.middleware import RateLimitingMiddleware, InMemoryLimitProvider
+
+rate_limit_provider = InMemoryLimitProvider(
+        limit=500,   # in 5 minutes span 500 requests per client is allowed
+        timespan=300,   # all the counters reset every 5 minutes
+        block_duration=300,   # Blocked for 5 minutes
+    )
+# We can create endpoints to reset the all limits on customer's request manually on emergency with below function
+# rate_limit_provider.clear_blocked()
+# Use /api/v1/reset_rate_limits endpoint with ADMIN previledges to clear the block list.
+
+app.add_middleware(
+    RateLimitingMiddleware,
+    provider = rate_limit_provider,
+)
+
+
+'''
+# If we are having known load-balancer or proxy before the API server.
+# Modifies the `client` and `scheme` information so that they reference
+#          the connecting client, rather that the connecting proxy/load-balancer.
+# https://github.com/encode/uvicorn/blob/master/uvicorn/middleware/proxy_headers.py
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app.add_middleware(ProxyHeadersMiddleware)
+# Other uvicorn middleware - https://github.com/encode/uvicorn/tree/master/uvicorn
+'''
+
+
+
+# Database Connection
 db = DatabaseConnection().get_db_connection()
 
 
@@ -118,7 +187,6 @@ def authorize(current_user, roles=[]):
 
 
 # Custom Exception Handler - Logs the exception
-
 @app.exception_handler(Exception)
 async def unicorn_exception_handler(request: Request, exc: Exception):
     logger.exception("{}".format(exc))
@@ -144,6 +212,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return token_manager.create_token(user.username)
 
 
+@app.post("/api/v1/reset_rate_limits", response_model=ApiSuccessResponse)
+async def reset_api_rate_limits(current_user: User = Depends(authenticate)):
+    authorize(current_user, roles=[UserRoles.ADMIN])
+    logger.info("Resetting API rate limit for all users...")
+    rate_limit_provider.clear_blocked()
+    return ApiSuccessResponse()
+
+
+
 ##################
 ## User Actions ##
 ##################
@@ -156,7 +233,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 )
 async def get_all_user_list(current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
-    logger.info("Getting user list")
+    logger.info("Getting user list. current_user:{}".format(current_user.username))
     users = await db.users.get_user_list(db.create_session())
     return users
 
@@ -171,7 +248,7 @@ async def get_all_user_list(current_user: User = Depends(authenticate)):
 )
 async def register_user(user: UserCreate, role: UserRoles = UserRoles.USER, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
-    logger.info("Creating a new user: {} - {}".format(user.username, user.email))
+    logger.info("Creating a new user:{} - {}, current_user:{}".format(user.username, user.email, current_user.username))
     try:
         await db.users.add(
             db.create_session(),
@@ -201,7 +278,7 @@ async def register_user(user: UserCreate, role: UserRoles = UserRoles.USER, curr
 )
 async def remove_user(username: str, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
-    logger.info("Removing a user: {}".format(username))
+    logger.info("Removing a user:{}, current_user:{}".format(username, current_user.username))
     await db.users.remove(
         db.create_session(),
         username
@@ -223,6 +300,7 @@ async def remove_user(username: str, current_user: User = Depends(authenticate))
     description="Add fingerprinting data collected from the browser.",
 )
 async def add_fingerprintjs_data(fingerprint_data: FingerprintJSData, request: Request, current_user: User = Depends(authenticate)):
+    logger.info("Adding fingerprintjs data. current_user:{}".format(current_user.username))
     client_ip = get_client_ip(request)
     await db.fingerprintjs.add(db.create_session(), fingerprint_data, client_ip, current_user.username)
     return ApiSuccessResponse()
@@ -237,6 +315,7 @@ async def add_fingerprintjs_data(fingerprint_data: FingerprintJSData, request: R
     description="Add geo location collected from the browser.",
 )
 async def add_fingerprintjs_geo_location(location_data: FingerprintJSGeoLocation, request: Request, current_user: User = Depends(authenticate)):
+    logger.info("Adding fingerprintjs geo location data. current_user:{}".format(current_user.username))
     client_ip = get_client_ip(request)
     if location_data.geoLocation:
         await db.fingerprintjs.add_geo_location(db.create_session(), location_data, client_ip, current_user.username)
@@ -259,7 +338,7 @@ async def add_fingerprintjs_geo_location(location_data: FingerprintJSGeoLocation
 )
 async def get_malicious_ip_list_ips_only(current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
-    logger.info("Listing IP Addresses only.")
+    logger.info("Listing IP Addresses only. current_user:{}".format(current_user.username))
     return await db.mal_ips.get_malicious_ip_list_only_ips(db.create_session())
 
 
@@ -272,7 +351,7 @@ async def get_malicious_ip_list_ips_only(current_user: User = Depends(authentica
 )
 async def get_malicious_ip_details(page: int=0, page_size: int=10, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
-    logger.info("Listing IP information (only for admin user).")
+    logger.info("Listing IP information (only for admin user). current_user:{}".format(current_user.username))
     return await db.mal_ips.get_malicious_ip_list_for_admin(db.create_session(), page, page_size)
 
 
@@ -285,7 +364,7 @@ async def get_malicious_ip_details(page: int=0, page_size: int=10, current_user:
 )
 async def remove_malicious_ips(ip_address_to_remove: MaliciousIPsRemove, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
-    logger.info("Removing Network Malicious IPs")
+    logger.info("Removing Network Malicious IPs. current_user:{}".format(current_user.username))
     await db.mal_ips.remove_malicious_ips(db.create_session(), ip_address_to_remove)
     return ApiSuccessResponse()
 
@@ -300,7 +379,7 @@ async def remove_malicious_ips(ip_address_to_remove: MaliciousIPsRemove, current
 )
 async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
-    logger.info("Adding Malicious IP information from Shadow Collector.")
+    logger.info("Adding Malicious IP information from Shadow Collector. current_user:{}".format(current_user.username))
     await db.mal_ips.add_shadow_collector_ips(db.create_session(), current_user.username, device_list)
     return ApiSuccessResponse()
 
@@ -312,7 +391,7 @@ async def add_sc_fingerprints(device_list: SCDeviceList, current_user: User = De
 
 async def add_firewall_malicious_ip_to_db(username: str, firewall_mal_ips, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
-    logger.info("Adding a new malicious IP list.")
+    logger.info("Adding a new malicious IP list. current_user:{}".format(current_user.username))
     await db.firewall_mal_ips.add_firewall_malicious_ips(db.create_session(), username, firewall_mal_ips)
     return ApiSuccessResponse()
 
@@ -328,6 +407,7 @@ async def add_firewall_malicious_ip_to_db(username: str, firewall_mal_ips, curre
 )
 async def add_firewall_malicious_ip_old(firewall_mal_ips: FirewallMaliciousIPCreateListOld, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
+    logger.info("Add firewall Malicious IPs. (Old) current_user:{}".format(current_user.username))
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
@@ -341,6 +421,7 @@ async def add_firewall_malicious_ip_old(firewall_mal_ips: FirewallMaliciousIPCre
 )
 async def add_firewall_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateList, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
+    logger.info("Add firewall Malicious IPs. current_user:{}".format(current_user.username))
     return await add_firewall_malicious_ip_to_db(current_user.username, firewall_mal_ips)
 
 
@@ -355,7 +436,7 @@ async def add_firewall_malicious_ip(firewall_mal_ips: FirewallMaliciousIPCreateL
 )
 async def list_firewall_malicious_ips_old(current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
-    logger.info("Return Malicious IP List. (Old)")
+    logger.info("Return Malicious IP List. (Old) current_user:{}".format(current_user.username))
     return await db.firewall_mal_ips.get_firewall_malicious_ips_old(db.create_session())
 
 
@@ -369,7 +450,7 @@ async def list_firewall_malicious_ips_old(current_user: User = Depends(authentic
 )
 async def list_firewall_malicious_ips(current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.USER, UserRoles.ADMIN])
-    logger.info("Return Malicious IP List.")
+    logger.info("Return Malicious IP List. current_user:{}".format(current_user.username))
     return await db.firewall_mal_ips.get_firewall_malicious_ips(db.create_session())
 
 
@@ -383,6 +464,7 @@ async def list_firewall_malicious_ips(current_user: User = Depends(authenticate)
 )
 async def remove_firewall_malicious_ips(ip_address_to_remove: FirewallMaliciousIPsRemove, current_user: User = Depends(authenticate)):
     authorize(current_user, roles=[UserRoles.ADMIN])
+    logger.info("Remove firewall malicious Ips. current_user:{}".format(current_user.username))
     await db.firewall_mal_ips.remove_firewall_malicious_ips(db.create_session(), ip_address_to_remove)
     return ApiSuccessResponse()
 
@@ -390,14 +472,14 @@ async def remove_firewall_malicious_ips(ip_address_to_remove: FirewallMaliciousI
 
 
 # TODO - Security checks
-# 1. input check for XSS and other values
-# 2. other security check for APIs
 # 3. deleting ip (and cascaded information)
 # 4. deleting ip info based on time
 # 5. deleting source (and cascaded information)
 # 6. deleting source info based on time
 # 7. Test true concurrency of API and database operations with Postgres
 # 8. Optimise database for better performance
-# 9. DDoS attack
-# 10. Bruteforce: 5 wrong password a client
-# 11. put fingerprintjs separate key so can we can identity client that sends the request differently
+# 12. Add proper logging everywhere
+# 13. Append username and client-ip on all logging
+# 14. Validate all string values, like length and other parameters
+# 15. Properly validate fingerprintJS data
+# 16. Management endpoints put on different server (not make it publicly available) (https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html)
